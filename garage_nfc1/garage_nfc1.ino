@@ -3,15 +3,18 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_PN532.h>
+#include "pitches.h"
+#include "secrets.h"
 
 // If using the breakout with SPI, define the pins for SPI communication.
 #define PN532_SCK  (2)
 #define PN532_MOSI (3)
 #define PN532_SS   (4)
 #define PN532_MISO (5)
-#define RELAY_PIN (10)
+#define PIN_AUDIO  (6)
+#define RELAY_PIN (7)
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
  #define DEBUG_PRINT(...)     Serial.print (__VA_ARGS__)
@@ -21,10 +24,10 @@
  //#define DEBUG_PRINTLN(x)  Serial.println (x)
  //#define DEBUG_PRINTLN(x)  Serial.println (x)
 #else
- #define DEBUG_PRINT(x)
+ #define DEBUG_PRINT(...)
  //#define DEBUG_PRINTDEC(x)
  //#define DEBUG_PRINTHEX(x)
- #define DEBUG_PRINTLN(x) 
+ #define DEBUG_PRINTLN(...) 
 #endif
 
 // Breakout board with a software SPI connection:
@@ -35,6 +38,34 @@ Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 // also change #define in Adafruit_PN532.cpp library file
    #define Serial SerialUSB
 #endif
+
+void playSuccessTone() {
+ tone(PIN_AUDIO, NOTE_C3, 100);
+ delay(100);
+ tone(PIN_AUDIO, NOTE_E3, 100);
+ delay(100);
+ tone(PIN_AUDIO, NOTE_G3, 100);
+ delay(100);
+ tone(PIN_AUDIO, NOTE_C4, 300);
+ delay(300);
+ noTone(PIN_AUDIO);
+}
+void playFailTone() {
+  tone(PIN_AUDIO, NOTE_C3, 300);
+  delay(300);
+  tone(PIN_AUDIO, NOTE_G2, 400);
+  delay(400);
+  noTone(PIN_AUDIO);
+}
+void playErrorTone() {
+  tone(PIN_AUDIO, NOTE_G2, 500);
+  delay(500);
+  tone(PIN_AUDIO, NOTE_G2, 500);
+  delay(500);
+  tone(PIN_AUDIO, NOTE_G2, 500);
+  delay(500);
+  noTone(PIN_AUDIO);
+}
 
 void setup(void) {
   // PREPARE OUTPUTS
@@ -56,6 +87,7 @@ void setup(void) {
   uint32_t versiondata = nfc.getFirmwareVersion();
   if (! versiondata) {
     DEBUG_PRINT("Didn't find PN53x board");
+    playErrorTone();
     while (1); // halt
   }
   // Got ok data, print it out!
@@ -119,7 +151,7 @@ void loop(void) {
           DEBUG_PRINTLN("");
 
           // CHECK THE PASSWORD
-          if(strncmp((char *)data, "dave", 4) == 0)
+          if(strncmp((char *)data, PASSWORD, PASSWORD_LEN) == 0)
           {
             DEBUG_PRINTLN("Password is correct. Opening");
             // FLASH THE LED AND TOGGLE THE RELAY
@@ -127,11 +159,11 @@ void loop(void) {
             digitalWrite(LED_BUILTIN, HIGH);
             delay(300); // MS
             digitalWrite(RELAY_PIN, LOW);
-            delay(1200); // keep the LED on for a bit longer
             digitalWrite(LED_BUILTIN, LOW);
-                      
+            playSuccessTone();
           } else {
             DEBUG_PRINT("Password is incorrect: ");DEBUG_PRINTLN(data[0]);
+            playFailTone();
           }
       
           // Wait a bit before reading the card again
@@ -140,12 +172,15 @@ void loop(void) {
         else
         {
           DEBUG_PRINTLN("Ooops ... unable to read the requested block.  Try another key?");
+          playFailTone();
         }
       }
       else
       {
         DEBUG_PRINTLN("Ooops ... authentication failed: Try another key?");
       }
+    } else {
+      playFailTone();
     }
   }
 }
